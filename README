@@ -1,2 +1,3 @@
 Compile with:
 gcc -framework IOKit -framework Cocoa -framework Carbon undop.m -o undop
+Put bad domains in ~/.bad_sites, separated by newlines.
