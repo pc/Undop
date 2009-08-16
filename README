@@ -1,0 +1,2 @@
+Compile with:
+gcc -framework IOKit -framework Cocoa -framework Carbon undop.m -o undop
