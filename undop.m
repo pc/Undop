@@ -33,7 +33,7 @@ NSString *currentSafariURL() {
     if(url)
       safariUrl = [[[NSURL URLWithString:url] host] retain];
     else
-      safariUrl = @"";
+      safariUrl = nil;
     
     lastSafariTime = now;
   }
