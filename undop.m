@@ -97,8 +97,6 @@ int main(int argc, char **argv)
 
     float brightness = getBrightness(service);
     
-    //fprintf(stderr, "brightness: %.2f, baseline: %.2f\n", brightness, baselineBrightness);
-    
     NSString *activeApp = [[[NSWorkspace sharedWorkspace] activeApplication] objectForKey:@"NSApplicationName"];      
     
     if([activeApp isEqualToString:@"Safari"] && [badSites() containsObject:currentSafariURL()]) {
