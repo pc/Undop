@@ -25,10 +25,14 @@ NSArray *badSites() {
 }
 
 NSDictionary *browserScripts() {
+  NSString *safariScript = @"tell application \"Safari\"\n\treturn URL of front document as string\nend tell";
+  NSString *chromeScript = @"tell application \"Google Chrome\"\n\treturn URL of active tab of window 1\nend tell";
   if(!_browserScripts) {
-    _browserScripts = [[NSDictionary 
-		  dictionaryWithObjects: [NSArray arrayWithObjects: [[NSAppleScript alloc] initWithSource: @"tell application \"Safari\"\n\treturn URL of front document as string\nend tell"], [[NSAppleScript alloc] initWithSource:@"tell application \"Google Chrome\"\n\treturn URL of active tab of window 1\nend tell"], nil] 
-		  forKeys: [NSArray arrayWithObjects: @"Safari", @"Google Chrome", nil]] retain];
+    _browserScripts = [[NSDictionary dictionaryWithObjects:
+                                       [NSArray arrayWithObjects:
+                                         [[NSAppleScript alloc] initWithSource:safariScript],
+                                         [[NSAppleScript alloc] initWithSource:chromeScript], nil] 
+                                     forKeys: [NSArray arrayWithObjects: @"Safari", @"Google Chrome", nil]] retain];
   }
   return _browserScripts;
 }
