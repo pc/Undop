@@ -4,41 +4,52 @@
 #import <ApplicationServices/ApplicationServices.h>
 
 NSArray *_badSites;
+NSDictionary *_browserScripts;
 
 CFStringRef key = CFSTR(kIODisplayBrightnessKey);
 
-double lastSafariTime;
-double safariDelta = 1.0;
-NSString *safariUrl = nil;
-NSAppleScript *safariScript = nil;
+double lastCheckTime;
+double checkDelta = 1.0;
 
 float expectedBrightness;
 float baselineBrightness;
 
 #define fatal(fmt, ...) do { fprintf(stderr, fmt, ## __VA_ARGS__); exit(1); } while(0);
 
-NSString *currentSafariURL() {
+NSArray *badSites() {
+  if(!_badSites) {
+    _badSites = [[[NSString stringWithContentsOfFile:[NSString stringWithFormat:@"%@/.bad_sites", NSHomeDirectory()]]
+                  componentsSeparatedByString:@"\n"] retain];
+  }
+  return _badSites;
+}
+
+NSDictionary *browserScripts() {
+  if(!_browserScripts) {
+    _browserScripts = [[NSDictionary 
+		  dictionaryWithObjects: [NSArray arrayWithObjects: [[NSAppleScript alloc] initWithSource: @"tell application \"Safari\"\n\treturn URL of front document as string\nend tell"], [[NSAppleScript alloc] initWithSource:@"tell application \"Google Chrome\"\n\treturn URL of active tab of window 1\nend tell"], nil] 
+		  forKeys: [NSArray arrayWithObjects: @"Safari", @"Google Chrome", nil]] retain];
+  }
+  return _browserScripts;
+}
+
+NSString *currentHost(NSString *browser) {
   NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+  NSString *host = nil;
   
-  if((now - lastSafariTime) > safariDelta) {  
-    if(!safariScript) {
-      safariScript = [[NSAppleScript alloc] initWithSource:@"tell application \"Safari\"\n\treturn URL of front document as string\nend tell"];
+  if((now - lastCheckTime) > checkDelta) {      
+    NSDictionary *err;
+    NSAppleScript *script = [browserScripts() objectForKey: browser];
+    NSAppleEventDescriptor *ret = [script executeAndReturnError:&err];
+    NSString *url = [ret stringValue];
+    if(url) {
+      host = [[[NSURL URLWithString:url] host] retain];
     }
     
-    NSDictionary *err;
-    NSAppleEventDescriptor *ret = [safariScript executeAndReturnError:&err];
-    NSString *url = [ret stringValue];
-    [safariUrl release];
-    
-    if(url)
-      safariUrl = [[[NSURL URLWithString:url] host] retain];
-    else
-      safariUrl = nil;
-    
-    lastSafariTime = now;
+    lastCheckTime = now;
   }
   
-  return safariUrl;
+  return host;
 }
 
 float getBrightness(io_service_t service) {
@@ -74,13 +85,6 @@ void decrementBrightness(io_service_t service) {
   setBrightness(service, brightness);
 }
 
-NSArray *badSites() {
-  if(!_badSites) {
-    _badSites = [[[NSString stringWithContentsOfFile:[NSString stringWithFormat:@"%@/.bad_sites", NSHomeDirectory()]]
-                  componentsSeparatedByString:@"\n"] retain];
-  }
-  return _badSites;
-}
 
 int main(int argc, char **argv) 
 {
@@ -99,13 +103,20 @@ int main(int argc, char **argv)
     
     NSString *activeApp = [[[NSWorkspace sharedWorkspace] activeApplication] objectForKey:@"NSApplicationName"];      
     
-    if([activeApp isEqualToString:@"Safari"] && [badSites() containsObject:currentSafariURL()]) {
-      if(!shocked) {
-        shocked = YES;
-        decrementBrightness(service);
-        brightness = getBrightness(service);
+    if([browserScripts() objectForKey: activeApp]) {
+      NSString *host = currentHost(activeApp); 
+      if(host) {
+        if([badSites() containsObject: host]) {
+          if(!shocked) {
+            shocked = YES;
+            decrementBrightness(service);
+            brightness = getBrightness(service);
+          }
+        }
+        [host release];
       }
-    } else if(shocked) {
+    }
+    else if(shocked) {
       shocked = NO;
     }
     
@@ -118,5 +129,4 @@ int main(int argc, char **argv)
     sleep(1);
   }
 }
-
 
