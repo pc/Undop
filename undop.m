@@ -6,13 +6,8 @@
 NSArray *_badSites;
 NSDictionary *_browserScripts;
 
-CFStringRef key = CFSTR(kIODisplayBrightnessKey);
-
 double lastCheckTime;
 double checkDelta = 1.0;
-
-float expectedBrightness;
-float baselineBrightness;
 
 #define fatal(fmt, ...) do { fprintf(stderr, fmt, ## __VA_ARGS__); exit(1); } while(0);
 
@@ -56,80 +51,43 @@ NSString *currentHost(NSString *browser) {
   return host;
 }
 
-float getBrightness(io_service_t service) {
-  float brightness;
-  CGDisplayErr err;
-  
-  err = IODisplayGetFloatParameter(service, kNilOptions, key, &brightness);
-  
-  if (err != kIOReturnSuccess)
-    fatal("Couldn't get display brightness");
-  
-  if(fabs(expectedBrightness - brightness) > 0.01)
-    baselineBrightness = brightness;
-  
-  expectedBrightness = brightness;  
-  
-  return brightness;
+void email(NSString *app, NSString *host) {
+  int ret = system(
+      [[NSString stringWithFormat:@"/usr/bin/ruby /Users/patrick/Projects/Undop/email.rb %@ %@",
+                 app, host] UTF8String]
+  );
+  NSLog(@"ret: %d", ret);
 }
-
-void setBrightness(io_service_t service, float brightness) {
-  CGDisplayErr      err;
-
-  err = IODisplaySetFloatParameter(service, kNilOptions, key, brightness);
-  expectedBrightness = brightness;
-  
-  if (err != kIOReturnSuccess)
-    fatal("Couldn't set display brightness");
-}
-
-void decrementBrightness(io_service_t service) {
-  float brightness = getBrightness(service);    
-  brightness -= 0.3;
-  setBrightness(service, brightness);
-}
-
 
 int main(int argc, char **argv) 
 {
-  io_service_t      service;
-  CGDirectDisplayID targetDisplay;
-      
-  targetDisplay = CGMainDisplayID();
-  service = CGDisplayIOServicePort(targetDisplay);
-  
-  BOOL shocked = NO;
+  BOOL notified = NO;
   
   while(true) {
     NSAutoreleasePool *pool = [NSAutoreleasePool new]; 
 
-    float brightness = getBrightness(service);
-    
-    NSString *activeApp = [[[NSWorkspace sharedWorkspace] activeApplication] objectForKey:@"NSApplicationName"];      
+    NSString *activeApp = [[[NSWorkspace sharedWorkspace] activeApplication] objectForKey:@"NSApplicationName"];
+
+    NSLog(@"activeApp: %@", activeApp);
     
     if([browserScripts() objectForKey: activeApp]) {
       NSString *host = currentHost(activeApp); 
+      NSLog(@"host: %@", host);
       if(host) {
         if([badSites() containsObject: host]) {
-          if(!shocked) {
-            shocked = YES;
-            decrementBrightness(service);
-            brightness = getBrightness(service);
+          if(!notified) {
+            notified = YES;
+            email(activeApp, host);
           }
         }
         [host release];
       }
+    } else if(notified) {
+      notified = NO;
     }
-    else if(shocked) {
-      shocked = NO;
-    }
-    
-    if(brightness < baselineBrightness) {
-      setBrightness(service, brightness + 0.01);
-    }
-    
+
     [pool release];
-    
+
     sleep(1);
   }
 }
